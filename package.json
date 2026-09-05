@@ -1,0 +1,66 @@
+{
+  "name": "rsbuild-plugin-ssg",
+  "version": "0.1.0",
+  "description": "Static Site Generation plugin for Rsbuild.",
+  "keywords": [
+    "preact",
+    "prerender",
+    "react",
+    "rsbuild",
+    "rsbuild-plugin",
+    "ssg",
+    "vue"
+  ],
+  "homepage": "https://github.com/jhanca-vm/rsbuild-plugin-ssg#readme",
+  "bugs": {
+    "url": "https://github.com/jhanca-vm/rsbuild-plugin-ssg/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jhanca-vm/rsbuild-plugin-ssg.git"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "rstest",
+    "build": "rslib"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "2.2.3",
+    "@rsbuild/plugin-preact": "2.1.0",
+    "@rsbuild/plugin-react": "2.1.0",
+    "@rsbuild/plugin-vue": "2.0.1",
+    "@rslib/core": "1.0.0",
+    "@rstest/adapter-rslib": "0.11.12",
+    "@rstest/core": "0.11.12",
+    "@types/node": "^24.13.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "oxfmt": "0.66.0",
+    "oxlint": "1.81.0",
+    "preact": "10.29.8",
+    "preact-render-to-string": "6.7.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "typescript": "7.0.2",
+    "vue": "3.5.42"
+  },
+  "peerDependencies": {
+    "@rsbuild/core": ">=2.0.0"
+  }
+}
