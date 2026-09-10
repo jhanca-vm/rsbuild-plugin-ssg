@@ -1,12 +1,12 @@
 {
   "name": "rsbuild-plugin-ssg",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Static Site Generation plugin for Rsbuild.",
   "keywords": [
+    "islands-architecture",
     "preact",
     "prerender",
     "react",
-    "rsbuild",
     "rsbuild-plugin",
     "ssg",
     "vue"
@@ -37,7 +37,7 @@
     "access": "public"
   },
   "scripts": {
-    "test": "rstest",
+    "test": "vitest",
     "build": "rslib"
   },
   "devDependencies": {
@@ -46,8 +46,6 @@
     "@rsbuild/plugin-react": "2.1.0",
     "@rsbuild/plugin-vue": "2.0.1",
     "@rslib/core": "1.0.0",
-    "@rstest/adapter-rslib": "0.11.12",
-    "@rstest/core": "0.11.12",
     "@types/node": "^24.13.3",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",
@@ -58,6 +56,7 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "typescript": "7.0.2",
+    "vitest": "5.0.0",
     "vue": "3.5.42"
   },
   "peerDependencies": {

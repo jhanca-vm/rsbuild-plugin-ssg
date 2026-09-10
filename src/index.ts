@@ -1,30 +1,54 @@
+import { globSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import path from 'node:path'
 import { createContext, Script } from 'node:vm'
 
-import { type RsbuildPlugin } from '@rsbuild/core'
+import { RsbuildPlugin } from '@rsbuild/core'
 
 import { PrerenderProvidePlugin } from './prerender-provide-plugin'
-import type { PluginSsgOptions, PrerenderAssets } from './types'
+import type { Pages, RenderFunction } from './types'
+
+export interface PluginSsgOptions {
+  /**
+   * Directory containing page files.
+   * @default 'src/pages'
+   */
+  basePath?: string
+  /**
+   * Glob pattern to match page files.
+   * @example '*.tsx'
+   */
+  pattern: string
+  /** Function to render a page component into an HTML string. */
+  render?: RenderFunction
+}
 
 const require = createRequire(import.meta.url)
 
 export const PLUGIN_SSG_NAME = 'rsbuild:ssg'
 
 export const pluginSsg = ({
-  entry,
+  basePath = 'src/pages',
+  pattern,
   render
 }: PluginSsgOptions): RsbuildPlugin => ({
   name: PLUGIN_SSG_NAME,
   setup(api) {
-    const prerenderAssets: PrerenderAssets = {}
+    const pages: Pages = new Map()
 
     api.modifyRsbuildConfig((config, { mergeRsbuildConfig }) => {
       const nodeEntry: Record<string, string> = {}
-      const webEntry: Record<string, string | string[]> = {}
+      const modules: Record<string, string> = {}
+      const webEntry: Record<string, string> = {}
 
-      for (const item in entry) {
-        nodeEntry[item] = entry[item]
-        webEntry[item] = './fallback'
+      for (const filePath of globSync(`${basePath}/${pattern}`)) {
+        const relativePath = path.relative(basePath, filePath)
+        const { name, dir } = path.parse(relativePath)
+        const entryName = name === 'index' && dir ? dir : dir + name
+
+        nodeEntry[entryName] = `./${filePath}`
+        modules[`./${entryName}.client`] = ''
+        webEntry[entryName] = `./${entryName}.client`
       }
 
       return mergeRsbuildConfig(config, {
@@ -55,14 +79,13 @@ export const pluginSsg = ({
           web: {
             dev: { hmr: false },
             source: { entry: webEntry },
+            output: { emitCss: false },
             tools: {
               rspack(config, { mergeConfig, rspack, HtmlPlugin }) {
                 return mergeConfig(config, {
                   plugins: [
-                    new rspack.experiments.VirtualModulesPlugin({
-                      './fallback': ''
-                    }),
-                    new PrerenderProvidePlugin(HtmlPlugin, prerenderAssets)
+                    new rspack.experiments.VirtualModulesPlugin(modules),
+                    new PrerenderProvidePlugin(HtmlPlugin, pages)
                   ],
                   dependencies: ['node']
                 })
@@ -70,9 +93,21 @@ export const pluginSsg = ({
             }
           }
         },
+        dev: {
+          watchFiles: {
+            paths: [`${basePath}/${pattern}`],
+            events: ['add', 'unlink'],
+            type: 'restart'
+          }
+        },
         server: { htmlFallback: false }
       })
     })
+
+    api.transform(
+      { resourceQuery: /^\?client$/, environments: ['node'] },
+      ({ resourcePath }) => `globalThis.exports.js.push('${resourcePath}')`
+    )
 
     api.processAssets(
       { stage: 'optimize', environments: ['node'] },
@@ -83,7 +118,7 @@ export const pluginSsg = ({
             const context = createContext({
               console,
               require,
-              exports: {},
+              exports: { js: [] },
               process,
               Buffer
             })
@@ -91,11 +126,12 @@ export const pluginSsg = ({
             try {
               script.runInContext(context)
 
-              const element = context.exports.default
+              const { default: element, js } = context.exports
 
-              prerenderAssets[`${file.slice(0, -3)}.html`] = {
-                html: render ? await render(element) : element
-              }
+              pages.set(`${file.slice(0, -3)}.html`, {
+                html: render ? await render(element) : element,
+                js
+              })
 
               compilation.deleteAsset(file)
             } catch (error) {
@@ -114,16 +150,34 @@ export const pluginSsg = ({
         })
 
         for (const name in namedChunkGroups) {
-          const prerenderAsset = prerenderAssets[`${name}.html`]
+          const page = pages.get(`${name}.html`)
 
-          if (prerenderAsset) {
-            prerenderAsset.css = namedChunkGroups[name].assets?.map(
+          if (page) {
+            page.css = namedChunkGroups[name].assets?.map(
               ({ name }) => `/${name}`
             )
           }
         }
       }
     })
+
+    api.transform(
+      { test: /\.client$/, environments: ['web'] },
+      ({ resourcePath, environment, addContextDependency, code }) => {
+        addContextDependency(path.resolve(environment.config.root, basePath))
+
+        const name = resourcePath.slice(environment.config.root.length + 1, -7)
+        const page = pages.get(`${name}.html`)
+
+        if (page?.js.length) {
+          for (const jsPath of page.js) {
+            code += `import('${jsPath}')\n`
+          }
+        }
+
+        return code
+      }
+    )
 
     if (process.env.NODE_ENV === 'production') {
       api.processAssets(

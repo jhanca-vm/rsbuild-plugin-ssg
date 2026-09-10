@@ -1,21 +1,19 @@
 # rsbuild-plugin-ssg
 
-Prerender your pages at build time with zero client-side JavaScript by default.
+Prerender your pages at build time with zero client-side JavaScript by default,
+and opt-in interactivity via Islands Architecture.
 
 ## Why?
 
-- **Lightweight**: You don't always need the heavy abstraction of a full
-  meta-framework (like Next.js or Astro). If you already have an Rsbuild setup
-  and just need to prerender a few pages, this plugin does exactly that with
-  minimal configuration.
-- **Zero-JS by default**: The generated output is pure, prerendered HTML and
-  extracted CSS. There is no hydration tax, no client-side JavaScript bundle,
-  and no complex waterfalls unless you explicitly add them.
-- **Framework agnostic**: Works seamlessly with Vanilla JS, React, Vue, and
-  Preact.
-- **Built on Rsbuild**: Leverages Rsbuild's native multi-environment support to
-  handle the Node.js prerendering and web bundling in a single, cohesive build
-  process.
+- **Lightweight**: Delivers an Astro-like experience (file-system routing, SSG,
+  islands) without heavy meta-framework abstraction.
+- **Zero-JS by default**: Pure prerendered HTML and CSS. No hydration tax unless
+  you explicitly add it.
+- **True Islands**: Opt-in interactivity with real client-side scripts that
+  manipulate the DOM.
+- **Framework agnostic**: Works with Vanilla JS, React, Vue, and Preact.
+- **Built on Rsbuild**: Native multi-environment support for Node.js
+  prerendering and web bundling.
 
 ## Installation
 
@@ -25,11 +23,14 @@ npm add -D rsbuild-plugin-ssg
 
 ## Usage
 
+Create pages in a dedicated directory (e.g., src/pages). The plugin generates an
+HTML file for each matched file.
+
 ### Vanilla JS
 
 ```ts
-// src/index.ts
-import './style.css'
+// src/pages/index.ts
+import '../style.css'
 
 export default `
   <html lang="en">
@@ -45,19 +46,11 @@ import { defineConfig } from '@rsbuild/core'
 import { pluginSsg } from 'rsbuild-plugin-ssg'
 
 export default defineConfig({
-  plugins: [pluginSsg({ entry: { index: './src/index.ts' } })]
+  plugins: [pluginSsg({ pattern: '**/*.ts' })]
 })
 ```
 
 ### React
-
-```bash
-npm add react react-dom
-```
-
-```bash
-npm add -D @rsbuild/plugin-react
-```
 
 ```ts
 // rsbuild.config.ts
@@ -71,7 +64,7 @@ export default defineConfig({
   plugins: [
     pluginReact(),
     pluginSsg({
-      entry: { index: './src/index.tsx' },
+      pattern: '**/*.tsx',
       render: (Page: () => ReactNode) => renderToStaticMarkup(Page())
     })
   ]
@@ -79,14 +72,6 @@ export default defineConfig({
 ```
 
 ### Vue
-
-```bash
-npm add vue
-```
-
-```bash
-npm add -D @rsbuild/plugin-vue
-```
 
 ```ts
 // rsbuild.config.ts
@@ -100,7 +85,7 @@ export default defineConfig({
   plugins: [
     pluginVue(),
     pluginSsg({
-      entry: { index: './src/index.vue' },
+      pattern: '**/*.vue',
       render: async (Page: VNode) => {
         const app = createSSRApp(Page)
         return renderToString(app)
@@ -111,14 +96,6 @@ export default defineConfig({
 ```
 
 ### Preact
-
-```bash
-npm add preact preact-render-to-string
-```
-
-```bash
-npm add -D @rsbuild/plugin-preact
-```
 
 ```ts
 // rsbuild.config.ts
@@ -132,41 +109,258 @@ export default defineConfig({
   plugins: [
     pluginPreact(),
     pluginSsg({
-      entry: { index: './src/index.tsx' },
-      render: (Page: () => VNode)) => renderToString(Page()),
-    }),
-  ],
+      pattern: '**/*.tsx',
+      render: (Page: () => VNode) => renderToString(Page())
+    })
+  ]
 })
 ```
 
-## Options
+## Islands Architecture
 
-### `entry`
+This plugin implements the original
+[Islands Architecture concept](https://jasonformat.com/islands-architecture/)
+as defined by Jason Miller, where islands are **standalone client-side scripts**
+that manipulate their own DOM regions independently.
 
-- Type: `Record<string, string>`
-- Required
+### Adding islands
 
-Object of entry names to their source file paths. Each key becomes the name of
-the generated HTML file (e.g. `index` → `index.html`).
+Append `?client` to any import to mark it as an island. The marked file becomes
+a real client-side script that runs in the browser, giving you full control over
+how interactivity is added to that specific region of the page.
 
-- Example:
+### Hydrating framework components
+
+The most optimized approach is to create a **reusable Web Component** that acts
+as a generic mount point. It receives the component name as an attribute and
+dynamically imports it using a convention-based path.
+
+<details>
+
+<summary>
+  <strong>React</strong>
+</summary>
+
+<p />
+
+```tsx
+// src/islands/react.tsx
+import { hydrateRoot } from 'react-dom/client'
+
+class IslandReact extends HTMLElement {
+  async connectedCallback() {
+    const name = this.getAttribute('data-name')
+
+    if (name) {
+      const { default: Component } = await import(`../components/${name}.tsx`)
+      hydrateRoot(this, <Component />)
+    }
+  }
+}
+
+customElements.define('island-react', IslandReact)
+```
+
+```ts
+// src/env.d.ts
+declare namespace React.JSX {
+  interface IntrinsicElements {
+    'island-react': React.DetailedHTMLProps<
+      React.HTMLAttributes<HTMLElement>,
+      HTMLElement
+    >
+  }
+}
+```
+
+If you want to use the React Compiler, enable it for the `web` environment:
 
 ```ts
 // rsbuild.config.ts
 import { defineConfig } from '@rsbuild/core'
+import { pluginReact } from '@rsbuild/plugin-react'
+import type { ReactNode } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { pluginSsg } from 'rsbuild-plugin-ssg'
 
 export default defineConfig({
   plugins: [
+    pluginReact(),
     pluginSsg({
-      entry: {
-        index: './src/index.ts',
-        about: './src/about.ts'
+      pattern: '**/*.tsx',
+      render: (Page: () => ReactNode) => renderToStaticMarkup(Page())
+    })
+  ],
+  environments: {
+    web: { plugins: [pluginReact({ reactCompiler: true })] }
+  }
+})
+```
+
+```tsx
+// src/pages/index.tsx
+import { renderToString } from 'react-dom/server'
+import Counter from '../components/counter'
+import RootLayout from '../layouts/root'
+import '../islands/react?client'
+
+export default function Home() {
+  return (
+    <RootLayout>
+      <island-react
+        data-name="counter"
+        dangerouslySetInnerHTML={{ __html: renderToString(<Counter />) }}
+      />
+    </RootLayout>
+  )
+}
+```
+
+</details>
+
+<details>
+
+<summary>
+  <strong>Vue</strong>
+</summary>
+
+<p />
+
+```ts
+// src/islands/vue.ts
+import { createSSRApp } from 'vue'
+
+class IslandVue extends HTMLElement {
+  async connectedCallback() {
+    const name = this.getAttribute('data-name')
+
+    if (name) {
+      const { default: Component } = await import(`../components/${name}.vue`)
+      createSSRApp(Component).mount(this)
+    }
+  }
+}
+
+customElements.define('island-vue', IslandVue)
+```
+
+```ts
+// rsbuild.config.ts
+import { defineConfig } from '@rsbuild/core'
+import { pluginVue } from '@rsbuild/plugin-vue'
+import { pluginSsg } from 'rsbuild-plugin-ssg'
+import { createSSRApp, type VNode } from 'vue'
+import { renderToString } from 'vue/server-renderer'
+
+export default defineConfig({
+  plugins: [
+    pluginVue({
+      vueLoaderOptions: {
+        compilerOptions: { isCustomElement: (tag) => tag.startsWith('island-') }
+      }
+    }),
+    pluginSsg({
+      pattern: '**/*.vue',
+      render: async (Page: VNode) => {
+        const app = createSSRApp(Page)
+        return renderToString(app)
       }
     })
   ]
 })
 ```
+
+```vue
+<!-- src/pages/index.vue -->
+<script setup>
+import Counter from '../components/counter.vue'
+import Layout from '../layouts/default.vue'
+
+import '../islands/vue?client'
+</script>
+
+<template>
+  <Layout>
+    <island-vue data-name="counter">
+      <Counter />
+    </island-vue>
+  </Layout>
+</template>
+```
+
+</details>
+
+<details>
+
+<summary>
+  <strong>Preact</strong>
+</summary>
+
+<p />
+
+```tsx
+// src/islands/preact.tsx
+import { hydrate } from 'preact'
+
+class IslandPreact extends HTMLElement {
+  async connectedCallback() {
+    const name = this.getAttribute('data-name')
+
+    if (name) {
+      const { default: Component } = await import(`../components/${name}.tsx`)
+      hydrate(<Component />, this)
+    }
+  }
+}
+
+customElements.define('island-preact', IslandPreact)
+```
+
+```ts
+// src/env.d.ts
+declare namespace preact.JSX {
+  interface IntrinsicElements {
+    'island-preact': preact.HTMLAttributes<HTMLElement>
+  }
+}
+```
+
+```tsx
+// src/pages/index.tsx
+import { renderToString } from 'preact-render-to-string'
+import Counter from '../components/counter'
+import RootLayout from '../layouts/root'
+import '../islands/preact?client'
+
+export default function Home() {
+  return (
+    <RootLayout>
+      <island-preact
+        data-name="counter"
+        dangerouslySetInnerHTML={{ __html: renderToString(<Counter />) }}
+      />
+    </RootLayout>
+  )
+}
+```
+
+</details>
+
+## Options
+
+### `basePath`
+
+- Type: `string | undefined`
+- Default: `src/pages`
+
+Directory containing page files.
+
+### `pattern`
+
+- Type: `string`
+- Required
+
+Glob pattern to match page files inside the `basePath`.
 
 ### `render`
 
@@ -175,7 +369,7 @@ export default defineConfig({
 | ((Page: () => PreactNode) => string)`
 - Default: `undefined`
 
-Optional function that receives the default export of your entry and returns the
+Function that receives the default export of your page entry and returns the
 HTML string. Required when working with framework components ([React](#react),
 [Vue](#vue), [Preact](#preact)).
 

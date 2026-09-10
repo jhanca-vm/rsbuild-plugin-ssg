@@ -1,18 +1,15 @@
 import type { HtmlRspackPlugin, Rspack } from '@rsbuild/core'
 
-import type { PrerenderAssets } from './types'
+import { Pages } from './types'
 
 export class PrerenderProvidePlugin implements Rspack.RspackPluginInstance {
   readonly name = 'PrerenderProvidePlugin'
   readonly HtmlPlugin: typeof HtmlRspackPlugin
-  readonly prerenderAssets: PrerenderAssets
+  readonly pages: Pages
 
-  constructor(
-    HtmlPlugin: typeof HtmlRspackPlugin,
-    prerenderAssets: PrerenderAssets
-  ) {
+  constructor(HtmlPlugin: typeof HtmlRspackPlugin, pages: Pages) {
     this.HtmlPlugin = HtmlPlugin
-    this.prerenderAssets = prerenderAssets
+    this.pages = pages
   }
 
   apply(compiler: Rspack.Compiler) {
@@ -20,19 +17,19 @@ export class PrerenderProvidePlugin implements Rspack.RspackPluginInstance {
       const hooks = this.HtmlPlugin.getCompilationHooks(compilation)
 
       hooks.beforeAssetTagGeneration.tap(this.name, (data) => {
-        const prerenderAsset = this.prerenderAssets[data.outputName]
+        const page = this.pages.get(data.outputName)
 
-        if (prerenderAsset?.css?.length) {
-          data.assets.css.push(...prerenderAsset.css)
+        if (page?.css?.length) {
+          data.assets.css.push(...page.css)
         }
 
         return data
       })
 
       hooks.afterTemplateExecution.tap(this.name, (data) => {
-        const prerenderAsset = this.prerenderAssets[data.outputName]
+        const page = this.pages.get(data.outputName)
 
-        if (prerenderAsset) data.html = `<!doctype html>${prerenderAsset.html}`
+        if (page) data.html = `<!doctype html>${page.html}`
 
         // Remove default tags injected by Rsbuild to avoid duplicates with
         // prerendered HTML
