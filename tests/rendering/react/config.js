@@ -5,7 +5,7 @@ import { pluginSsg } from 'rsbuild-plugin-ssg'
 
 export default defineConfig({
   plugins: [
-    pluginReact(),
+    pluginReact({ reactCompiler: true }),
     pluginSsg({
       basePath: 'tests/rendering/react',
       pattern: 'index.jsx',

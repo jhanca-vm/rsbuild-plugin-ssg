@@ -1,3 +1,4 @@
+import type { PluginVueOptions } from '@rsbuild/plugin-vue'
 import type { VNode as PreactNode } from 'preact'
 import type { ReactNode } from 'react'
 import type { Component } from 'svelte'
@@ -11,6 +12,8 @@ export type RenderFunction =
   | ((Page: Component) => string)
 
 export type Pages = Map<string, { html: string; css?: string[]; js: string[] }>
+
+export type VueLoaderOptions = NonNullable<PluginVueOptions['vueLoaderOptions']>
 
 export interface SvelteLoaderOptions {
   compilerOptions: CompileOptions

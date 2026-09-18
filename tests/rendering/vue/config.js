@@ -6,11 +6,7 @@ import { renderToString } from 'vue/server-renderer'
 
 export default defineConfig({
   plugins: [
-    pluginVue({
-      vueLoaderOptions: {
-        compilerOptions: { isCustomElement: (tag) => tag.includes('-') }
-      }
-    }),
+    pluginVue(),
     pluginSsg({
       basePath: 'tests/rendering/vue',
       pattern: 'index.vue',

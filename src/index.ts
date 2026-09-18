@@ -8,7 +8,12 @@ import { createContext, Script } from 'node:vm'
 import type { RsbuildPlugin } from '@rsbuild/core'
 
 import { PrerenderProvidePlugin } from './prerender-provide-plugin'
-import type { Pages, RenderFunction, SvelteLoaderOptions } from './types'
+import type {
+  Pages,
+  RenderFunction,
+  SvelteLoaderOptions,
+  VueLoaderOptions
+} from './types'
 
 export interface PluginSsgOptions {
   /**
@@ -84,22 +89,40 @@ export const pluginSsg = ({
             },
             tools: {
               bundlerChain(chain, { CHAIN_ID }) {
+                if (chain.module.rules.has(CHAIN_ID.RULE.VUE)) {
+                  chain.module
+                    .rule(CHAIN_ID.RULE.VUE)
+                    .use(CHAIN_ID.USE.VUE)
+                    .tap((rawOptions) => {
+                      const options = rawOptions as VueLoaderOptions
+
+                      options.compilerOptions ??= {}
+
+                      options.compilerOptions.isCustomElement = (tag) => {
+                        return tag.includes('-')
+                      }
+
+                      return options
+                    })
+                }
+
                 if (chain.module.rules.has(CHAIN_ID.RULE.SVELTE)) {
                   chain.module
                     .rule(CHAIN_ID.RULE.SVELTE)
                     .use(CHAIN_ID.USE.SVELTE)
-                    .tap((options) => {
-                      const { compilerOptions } = options as SvelteLoaderOptions
+                    .tap((rawOptions) => {
+                      const options = rawOptions as SvelteLoaderOptions
 
-                      compilerOptions.dev = false
-                      compilerOptions.generate = 'server'
+                      options.compilerOptions.dev = false
+                      options.compilerOptions.generate = 'server'
 
                       return options
                     })
                 }
               },
               cssLoader: { esModule: false },
-              rspack: { output: { library: { type: 'commonjs-static' } } }
+              rspack: { output: { library: { type: 'commonjs-static' } } },
+              swc: { jsc: { transform: { reactCompiler: false } } }
             }
           },
           web: {
