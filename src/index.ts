@@ -1,12 +1,14 @@
+import { Buffer } from 'node:buffer'
 import { globSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
+import process from 'node:process'
 import { createContext, Script } from 'node:vm'
 
-import { RsbuildPlugin } from '@rsbuild/core'
+import type { RsbuildPlugin } from '@rsbuild/core'
 
 import { PrerenderProvidePlugin } from './prerender-provide-plugin'
-import type { Pages, RenderFunction } from './types'
+import type { Pages, RenderFunction, SvelteLoaderOptions } from './types'
 
 export interface PluginSsgOptions {
   /**
@@ -67,11 +69,27 @@ export const pluginSsg = ({
             output: {
               autoExternal: true,
               emitCss: true,
+              externals: ['svelte/internal/server'],
               minify: true,
               module: false,
               target: 'node'
             },
             tools: {
+              bundlerChain(chain, { CHAIN_ID }) {
+                if (chain.module.rules.has(CHAIN_ID.RULE.SVELTE)) {
+                  chain.module
+                    .rule(CHAIN_ID.RULE.SVELTE)
+                    .use(CHAIN_ID.USE.SVELTE)
+                    .tap((options) => {
+                      const { compilerOptions } = options as SvelteLoaderOptions
+
+                      compilerOptions.dev = false
+                      compilerOptions.generate = 'server'
+
+                      return options
+                    })
+                }
+              },
               cssLoader: { esModule: false },
               rspack: { output: { library: { type: 'commonjs-static' } } }
             }
@@ -120,7 +138,8 @@ export const pluginSsg = ({
               require,
               exports: { js: [] },
               process,
-              Buffer
+              Buffer,
+              queueMicrotask
             })
 
             try {

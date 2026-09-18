@@ -1,16 +1,20 @@
 {
   "compilerOptions": {
-    "strict": true,
-    "module": "ES2022",
     "lib": ["ES2022"],
+    "target": "ES2022",
     "noEmit": true,
     "skipLibCheck": true,
-    "isolatedModules": true,
-    "resolveJsonModule": true,
-    "moduleResolution": "bundler",
+    "types": ["node"],
     "useDefineForClassFields": true,
+    "rootDir": "src",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
-    "rootDir": "src"
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "paths": { "rsbuild-plugin-ssg": ["./src/index.ts"] }
   },
   "include": ["src"]
 }

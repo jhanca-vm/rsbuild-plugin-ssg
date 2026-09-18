@@ -9,6 +9,7 @@
     "react",
     "rsbuild-plugin",
     "ssg",
+    "svelte",
     "vue"
   ],
   "homepage": "https://github.com/jhanca-vm/rsbuild-plugin-ssg#readme",
@@ -37,13 +38,15 @@
     "access": "public"
   },
   "scripts": {
-    "test": "vitest",
+    "test": "playwright test --workers=1",
     "build": "rslib"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@rsbuild/core": "2.2.3",
     "@rsbuild/plugin-preact": "2.1.0",
     "@rsbuild/plugin-react": "2.1.0",
+    "@rsbuild/plugin-svelte": "2.0.1",
     "@rsbuild/plugin-vue": "2.0.1",
     "@rslib/core": "1.0.0",
     "@types/node": "^24.13.3",
@@ -55,8 +58,9 @@
     "preact-render-to-string": "6.7.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "svelte": "5.57.0",
+    "tsx": "4.23.13",
     "typescript": "7.0.2",
-    "vitest": "5.0.0",
     "vue": "3.5.42"
   },
   "peerDependencies": {
