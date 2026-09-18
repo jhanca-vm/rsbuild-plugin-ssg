@@ -44,9 +44,17 @@ export const pluginSsg = ({
       const webEntry: Record<string, string> = {}
 
       for (const filePath of globSync(`${basePath}/${pattern}`)) {
-        const relativePath = path.relative(basePath, filePath)
-        const { name, dir } = path.parse(relativePath)
-        const entryName = name === 'index' && dir ? dir : dir + name
+        const { name, dir } = path.parse(path.relative(basePath, filePath))
+
+        let entryName = name
+
+        if (dir) {
+          if (name === 'index') {
+            entryName = dir
+          } else {
+            entryName = `${dir}/${name}`
+          }
+        }
 
         nodeEntry[entryName] = `./${filePath}`
         modules[`./${entryName}.client`] = ''
