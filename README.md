@@ -11,7 +11,7 @@ and opt-in interactivity via Islands Architecture.
   you explicitly add it.
 - **True Islands**: Opt-in interactivity with real client-side scripts that
   manipulate the DOM.
-- **Framework agnostic**: Works with Vanilla JS, React, Vue, and Preact.
+- **Framework agnostic**: Works with Vanilla JS, React, Vue, Preact and Svelte.
 - **Built on Rsbuild**: Native multi-environment support for Node.js
   prerendering and web bundling.
 
@@ -86,7 +86,7 @@ export default defineConfig({
     pluginVue(),
     pluginSsg({
       pattern: '**/*.vue',
-      render: async (Page: VNode) => {
+      render(Page: VNode) {
         const app = createSSRApp(Page)
         return renderToString(app)
       }
@@ -116,6 +116,30 @@ export default defineConfig({
 })
 ```
 
+### Svelte
+
+```ts
+// rsbuild.config.ts
+import { defineConfig } from '@rsbuild/core'
+import { pluginSvelte } from '@rsbuild/plugin-svelte'
+import { pluginSsg } from 'rsbuild-plugin-ssg'
+import type { Component } from 'svelte'
+import { render } from 'svelte/server'
+
+export default defineConfig({
+  plugins: [
+    pluginSvelte(),
+    pluginSsg({
+      pattern: '**/*.svelte',
+      render(Page: Component) {
+        const { head, body } = render(Page)
+        return `<html lang="en"><head>${head}</head><body>${body}</body></html>`
+      }
+    })
+  ]
+})
+```
+
 ## Islands Architecture
 
 This plugin implements the original
@@ -128,6 +152,14 @@ that manipulate their own DOM regions independently.
 Append `?client` to any import to mark it as an island. The marked file becomes
 a real client-side script that runs in the browser, giving you full control over
 how interactivity is added to that specific region of the page.
+
+To prevent TypeScript from throwing errors when using the `?client` suffix on
+imports, add module declarations to your `src/env.d.ts`:
+
+```ts
+// src/env.d.ts
+declare module '*?client' {}
+```
 
 ### Hydrating framework components
 
@@ -153,6 +185,7 @@ class IslandReact extends HTMLElement {
 
     if (name) {
       const { default: Component } = await import(`../components/${name}.tsx`)
+
       hydrateRoot(this, <Component />)
     }
   }
@@ -171,30 +204,6 @@ declare namespace React.JSX {
     >
   }
 }
-```
-
-If you want to use the React Compiler, enable it for the `web` environment:
-
-```ts
-// rsbuild.config.ts
-import { defineConfig } from '@rsbuild/core'
-import { pluginReact } from '@rsbuild/plugin-react'
-import type { ReactNode } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
-import { pluginSsg } from 'rsbuild-plugin-ssg'
-
-export default defineConfig({
-  plugins: [
-    pluginReact(),
-    pluginSsg({
-      pattern: '**/*.tsx',
-      render: (Page: () => ReactNode) => renderToStaticMarkup(Page())
-    })
-  ],
-  environments: {
-    web: { plugins: [pluginReact({ reactCompiler: true })] }
-  }
-})
 ```
 
 ```tsx
@@ -236,6 +245,7 @@ class IslandVue extends HTMLElement {
 
     if (name) {
       const { default: Component } = await import(`../components/${name}.vue`)
+
       createSSRApp(Component).mount(this)
     }
   }
@@ -244,38 +254,11 @@ class IslandVue extends HTMLElement {
 customElements.define('island-vue', IslandVue)
 ```
 
-```ts
-// rsbuild.config.ts
-import { defineConfig } from '@rsbuild/core'
-import { pluginVue } from '@rsbuild/plugin-vue'
-import { pluginSsg } from 'rsbuild-plugin-ssg'
-import { createSSRApp, type VNode } from 'vue'
-import { renderToString } from 'vue/server-renderer'
-
-export default defineConfig({
-  plugins: [
-    pluginVue({
-      vueLoaderOptions: {
-        compilerOptions: { isCustomElement: (tag) => tag.startsWith('island-') }
-      }
-    }),
-    pluginSsg({
-      pattern: '**/*.vue',
-      render: async (Page: VNode) => {
-        const app = createSSRApp(Page)
-        return renderToString(app)
-      }
-    })
-  ]
-})
-```
-
 ```vue
 <!-- src/pages/index.vue -->
 <script setup>
 import Counter from '../components/counter.vue'
 import Layout from '../layouts/default.vue'
-
 import '../islands/vue?client'
 </script>
 
@@ -308,6 +291,7 @@ class IslandPreact extends HTMLElement {
 
     if (name) {
       const { default: Component } = await import(`../components/${name}.tsx`)
+
       hydrate(<Component />, this)
     }
   }
@@ -346,6 +330,52 @@ export default function Home() {
 
 </details>
 
+<details>
+
+<summary>
+  <strong>Svelte</strong>
+</summary>
+
+<p />
+
+```ts
+// src/islands/svelte.ts
+import { hydrate } from 'svelte'
+
+class IslandSvelte extends HTMLElement {
+  async connectedCallback() {
+    const name = this.getAttribute('data-name')
+
+    if (name) {
+      const { default: Component } = await import(
+        `../components/${name}.svelte`
+      )
+
+      hydrate(Component, { target: this })
+    }
+  }
+}
+
+customElements.define('island-svelte', IslandSvelte)
+```
+
+```svelte
+<!-- src/pages/index.svelte -->
+<script>
+  import Counter from '../components/counter.svelte'
+  import BaseLayout from '../layouts/base.svelte'
+  import '../islands/svelte?client'
+</script>
+
+<BaseLayout>
+  <island-svelte data-name="counter">
+    <Counter />
+  </island-svelte>
+</BaseLayout>
+```
+
+</details>
+
 ## Options
 
 ### `basePath`
@@ -365,13 +395,14 @@ Glob pattern to match page files inside the `basePath`.
 ### `render`
 
 - Type: `((Page: () => ReactNode) => string)
-| ((Page: VueNode) => Promise<string>)
-| ((Page: () => PreactNode) => string)`
+| ((Page: VNode) => Promise<string>)
+| ((Page: () => VNode) => string)
+| ((Page: Component) => string)`
 - Default: `undefined`
 
 Function that receives the default export of your page entry and returns the
 HTML string. Required when working with framework components ([React](#react),
-[Vue](#vue), [Preact](#preact)).
+[Vue](#vue), [Preact](#preact), [Svelte](#svelte)).
 
 ## License
 
